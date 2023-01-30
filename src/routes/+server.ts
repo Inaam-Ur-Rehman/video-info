@@ -38,7 +38,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	if (url.includes('youtube.com')) {
 		videoId = extractYoutubeId(url);
 		const data = fetch(
-			`https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=AIzaSyD9JK4RljJt2NMHk6_rIXMMU0l1pWoHOO4`
+			`https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${env.GOOGLE_API_KEY}`
 		);
 		const response = await (await data).json();
 		return json({
