@@ -1,7 +1,9 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { Vimeo } from 'vimeo';
 import { env } from '$env/dynamic/private';
+
+import axios from 'axios';
+import cheerio from 'cheerio';
 
 let videoId = '';
 
@@ -37,10 +39,17 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	if (url.includes('youtube.com')) {
 		videoId = extractYoutubeId(url);
-		const data = fetch(
+		const data = await fetch(
 			`https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${env.GOOGLE_API_KEY}`
 		);
-		const response = await (await data).json();
+		if (!data.ok) {
+			return json({
+				videoTitle: 'Invalid URL',
+				videoThumbnail: '',
+				videoUrl: ''
+			});
+		}
+		const response = await data.json();
 		return json({
 			videoTitle: response?.items[0]?.snippet?.title,
 			videoThumbnail: response?.items[0]?.snippet?.thumbnails?.high?.url,
@@ -51,6 +60,14 @@ export const POST: RequestHandler = async ({ request }) => {
 		const vimeoApi = 'https://vimeo.com/api/v2/video/{video_id}.json';
 
 		const response = await fetch(vimeoApi.replace('{video_id}', videoId));
+
+		if (!response.ok) {
+			return json({
+				videoTitle: 'Invalid URL',
+				videoThumbnail: '',
+				videoUrl: ''
+			});
+		}
 		const data = await response.json();
 
 		return json({
@@ -67,7 +84,16 @@ export const POST: RequestHandler = async ({ request }) => {
 				Authorization: `Bearer ${env.TWITCH_TOKEN}`
 			}
 		});
+		if (!data.ok) {
+			return json({
+				videoTitle: 'Invalid URL',
+				videoThumbnail: '',
+				videoUrl: ''
+			});
+		}
 		const response = await data.json();
+		console.log(response);
+
 		if (response?.status === 400) {
 			return json({
 				videoTitle: 'Invalid URL',
@@ -81,6 +107,26 @@ export const POST: RequestHandler = async ({ request }) => {
 				videoUrl: response?.data[0]?.url
 			});
 		}
+	} else if (url.includes('tiktok.com')) {
+		videoId = extractTikTokId(url);
+		const response = await axios.get(url);
+		if (!response.data) {
+			return json({
+				videoTitle: 'Invalid URL',
+				videoThumbnail: '',
+				videoUrl: ''
+			});
+		}
+		const $ = cheerio.load(response.data);
+
+		const videoTitle = $('title').text();
+		const videoThumbnail = $('.tiktok-j6dmhd-ImgPoster')?.attr('src');
+
+		return json({
+			videoTitle: videoTitle,
+			videoThumbnail: videoThumbnail,
+			videoUrl: url
+		});
 	} else {
 		return json({
 			videoTitle: 'Invalid URL',
